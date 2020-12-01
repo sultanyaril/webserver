@@ -74,6 +74,7 @@ char *get_word(int client_socket) {
 char *get_path(int client_socket) {
     char *path;
     char *cont = get_word(client_socket);  // its important to use container in order to prevent overflow
+    printf("%s", cont);
     if (!strcmp("GET", cont) ) { 
         perror("incorrect query #1");
     }
@@ -110,14 +111,46 @@ int request_is_text(char *path) {
     return 0;
 }
 
+int size_long(long inp) {
+    int answ = 0;
+    for ( ; inp ; inp /= 10)
+        answ++;
+    return answ;
+}
+
 char *telnet_text(char *request_path) {
     int fd = open(request_path, O_RDONLY, 0);   
     if (fd < 0) {
-        char *answ = malloc(13 * sizeof(char));
-        strcpy(answ, "HTTP/1.1 404\n");
+        char head[] = "HTTP/1.1 404\n";
+        char *answ = malloc(sizeof(char) * strlen(head));
+        strcpy(answ, head);
         return answ;
     }
+    char *answ = NULL;
+    strcat(answ, "HTTP/1.1 200\ncontent-type: ");
+    int type_ind = 0;
+    for ( ; request_path[type_ind] != '.'; type_ind++);
+    strcat(answ, &(request_path[type_ind + 1]));
+    
+    strcat(answ, "\ncontent-size: ");
+    struct stat stats;
+    if (stat(request_path, &stats) != 0)
+        perror("stat error");
+    char *buff = malloc(sizeof(char) * size_long(stats.st_size));
+    sprintf(buff, "%ld", stats.st_size);
+    strcat(answ, buff);
+    strcat(answ, "\n");
+    free(buff);
 
+    buff = malloc(sizeof(char) * stats.st_size);
+    strcat(answ, buff);
+    return answ;
+}
+
+int send_to_client(int client_socket, char *response) {
+    if ( write(client_socket, response, sizeof(response)) > 0)
+        return 1;
+    return 0;
 }
 
 int interaction_client(int client_socket) {
@@ -125,9 +158,13 @@ int interaction_client(int client_socket) {
     if (request_is_text(request_path)) {
         char *response = telnet_text(request_path);
         send_to_client(client_socket, response);
-    } else {
-
+        printf("%s", response);
+        return 1;
     }
+//    if (request_is_bin(request_path)) {
+        
+
+//    }
 
 }
 

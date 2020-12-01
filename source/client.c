@@ -50,7 +50,19 @@ char *get_segment(void) {
         answ = realloc(answ, (size + 1) * sizeof(char));
         answ[size - 1] = ch;
     }
-    answ[size] = '\0';
+    if (answ)
+        answ[size] = '\0';
+    return answ;
+}
+
+char *get_file_path(void) {
+    char *answ = NULL;
+    int size = 0;
+    for (char ch = getchar() ; ch != '\n' && ch != '\0' ; ch = getchar()) {
+        size++;
+        answ = realloc(answ, size * sizeof(char));
+        answ[size - 1] = ch;
+    }
     return answ;
 }
 
@@ -61,7 +73,7 @@ int parse(char **real_ip, int *real_port, char **real_file) {
     char *cont = NULL; // container
     
     cont = get_segment(); // reading "http:"
-    if (!strcmp(cont, "exit")) {
+    if (!strcmp(cont, "exit\0")) {
         return -1;
     }
 
@@ -86,7 +98,7 @@ int parse(char **real_ip, int *real_port, char **real_file) {
     cont = get_segment();
     port = atoi(cont); // getting port
     free(cont);
-    file = get_segment(); // getting file
+    file = get_file_path(); // getting file
  
     *real_ip = ip;
     *real_port = port;
