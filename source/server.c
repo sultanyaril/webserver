@@ -74,8 +74,7 @@ char *get_word(int client_socket) {
 char *get_path(int client_socket) {
     char *path;
     char *cont = get_word(client_socket);  // its important to use container in order to prevent overflow
-    printf("%s", cont);
-    if (!strcmp("GET", cont) ) { 
+    if (strcmp("GET", cont) ) { 
         perror("incorrect query #1");
     }
     free(cont);
@@ -83,19 +82,19 @@ char *get_path(int client_socket) {
     path = get_word(client_socket);
 
     cont = get_word(client_socket);
-    if (!strcmp("HTTP/1.1", cont)) {
+    if (strcmp("HTTP/1.1", cont)) {
         perror("incorrect query #2");
     }
     free(cont);
 
     cont = get_word(client_socket);
-    if (!strcmp("Host: ", cont)) {
+    if (strcmp("Host:", cont)) {
         perror("incorrect query #3");
     }
     free(cont);
 
     cont = get_word(client_socket);
-    if (!strcmp("127.0.0.1", cont)) {
+    if (strcmp("127.0.0.1", cont)) {
         perror("incorrect query #4");
     }
     free(cont);
@@ -104,9 +103,9 @@ char *get_path(int client_socket) {
 }
 
 int request_is_text(char *path) {
-    int i;
+    int i = 0;
     for ( ; path[i] != '\0' && path[i] != '.'; i++);
-    if (i != (sizeof(path) - 1))
+    if (i != strlen(path))
         return 1;
     return 0;
 }
@@ -126,31 +125,53 @@ char *telnet_text(char *request_path) {
         strcpy(answ, head);
         return answ;
     }
-    char *answ = NULL;
-    strcat(answ, "HTTP/1.1 200\ncontent-type: ");
+    char head[] = "HTTP/1.1 200\ncontent-type: ";
+    char *answ = malloc(sizeof(char) * strlen(head));
+    strcpy(answ, head);
     int type_ind = 0;
     for ( ; request_path[type_ind] != '.'; type_ind++);
     strcat(answ, &(request_path[type_ind + 1]));
-    
-    strcat(answ, "\ncontent-size: ");
+    char cont[] = "/text\ncontent-size: ";
+    strcat(answ, cont);
     struct stat stats;
     if (stat(request_path, &stats) != 0)
         perror("stat error");
-    char *buff = malloc(sizeof(char) * size_long(stats.st_size));
-    sprintf(buff, "%ld", stats.st_size);
+    char str_size[15];
+    sprintf(str_size, "%ld", stats.st_size);
+    strcat(answ, str_size);
+    strcat(answ, "\n");
+    char *buff = malloc(sizeof(char) * stats.st_size);
+    read(fd, buff, stats.st_size);
     strcat(answ, buff);
     strcat(answ, "\n");
-    free(buff);
-
-    buff = malloc(sizeof(char) * stats.st_size);
-    strcat(answ, buff);
+    close(fd);
     return answ;
 }
 
 int send_to_client(int client_socket, char *response) {
-    if ( write(client_socket, response, sizeof(response)) > 0)
+    if ( write(client_socket, response, strlen(response)) > 0)
         return 1;
     return 0;
+}
+
+int request_is_bin(char *request_path) {
+    int i = 0;
+    for ( ; request_path[i] != '.' ; i++) 
+    if (i == strlen(request_path))
+        return 1;
+    return 0;
+}
+
+int telnet_bin(int client_socket, char *request_path) {
+    int pid = fork();
+    if (pid == 0) {
+        dup2(client_socket, 1);
+        char *cmd = malloc(sizeof(char) * 3);
+        strcpy(cmd, "./\0");
+        strcat(cmd, request_path);
+        execl(cmd, cmd, NULL);
+        exit(0);
+    }
 }
 
 int interaction_client(int client_socket) {
@@ -158,14 +179,12 @@ int interaction_client(int client_socket) {
     if (request_is_text(request_path)) {
         char *response = telnet_text(request_path);
         send_to_client(client_socket, response);
-        printf("%s", response);
         return 1;
     }
-//    if (request_is_bin(request_path)) {
-        
-
-//    }
-
+    if (request_is_bin(request_path)) {
+        telnet_bin(client_socket, request_path);
+        return 1;
+    }
 }
 
 int main(int argc, char** argv) {
@@ -187,25 +206,27 @@ int main(int argc, char** argv) {
     int *pid = malloc(sizeof(int) * client_num);
 
     for (int i = 0 ; i < client_num ; i++) {
-        puts("wait for connection");
-        client_socket = accept(server_socket,
-                        (struct sockaddr *) &client_address,
-                        &size);
-        printf("connected: %s %d\n", inet_ntoa(client_address.sin_addr),
-                        ntohs(client_address.sin_port));    
         pid[i] = fork();
         if (pid[i] == 0) {
-            interaction_client(client_socket);
+            while (1) {
+                puts("wait for connection");
+                client_socket = accept(server_socket,
+                                (struct sockaddr *) &client_address,
+                                &size);
+                printf("connected: %s %d\n", inet_ntoa(client_address.sin_addr),
+                                ntohs(client_address.sin_port));    
+                interaction_client(client_socket);
+                close(client_socket);
+            }
             exit(0);
         }
-        close(client_socket);
     }
 
     while(1) {
         client_socket = accept(server_socket,
                         (struct sockaddr *) &client_address,
                         &size);
-        write(client_socket, "busy", 4);
+        write(client_socket, "busy\n", 5);
         close(client_socket);
     }
 

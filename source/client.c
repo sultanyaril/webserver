@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <sys/wait.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -60,9 +60,10 @@ char *get_file_path(void) {
     int size = 0;
     for (char ch = getchar() ; ch != '\n' && ch != '\0' ; ch = getchar()) {
         size++;
-        answ = realloc(answ, size * sizeof(char));
+        answ = realloc(answ, (size + 1) * sizeof(char));
         answ[size - 1] = ch;
     }
+    answ[size] = '\0';
     return answ;
 }
 
@@ -73,11 +74,11 @@ int parse(char **real_ip, int *real_port, char **real_file) {
     char *cont = NULL; // container
     
     cont = get_segment(); // reading "http:"
-    if (!strcmp(cont, "exit\0")) {
+    if (!strcmp(cont, "exit")) {
         return -1;
     }
 
-    if (!strcmp(cont, "http")) {
+    if (strcmp(cont, "http")) {
         perror("incorrect query #1");
     }
     free(cont);
@@ -103,7 +104,6 @@ int parse(char **real_ip, int *real_port, char **real_file) {
     *real_ip = ip;
     *real_port = port;
     *real_file = file;
-
     return 0;
 }
 
@@ -111,15 +111,26 @@ int main(int argc, char **argv) {
     char *ip;
     int port, server;
     char *file;
+
     while (parse(&ip, &port, &file) >= 0) {
         server = init_socket(ip, port);
         write(server, "GET ", 4);
-        write(server, file, sizeof(file));
-        write(server, "HTTP/1.1\n", 9);
+        write(server, file, strlen(file));
+        write(server, " HTTP/1.1\n", 10);
         write(server, "Host: ", 6);
-        ip[sizeof(ip) - 1] = '\n';
-        write(server, ip, sizeof(ip));
+        ip[strlen(ip)] = '\n';
+        write(server, ip, strlen(ip));
         write(server, "\n", 1);
+        int pid = fork();
+        if (pid == 0) {
+            char ch;
+            while (read(server, &ch, 1) >= 0) {
+                putchar(ch);
+            }
+            exit(0);
+        } else {
+            wait(NULL);
+        }
         close(server);
         free(ip);
         free(file);

@@ -7,5 +7,5 @@ client: source/client.c
 server: source/server.c
 	gcc source/server.c -o bin/server
 
-resource: resource/cgi-source/$(SRC)
-	gcc resource/cgi-source/$(SRC) -o resource/cgi-bin/$(OBJ)
+resource: resource/cgi-source/hello-world.c
+	gcc resource/cgi-source/hello-world.c -o resource/cgi-bin/hello-world
