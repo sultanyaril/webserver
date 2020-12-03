@@ -1,2 +1,2 @@
-bin
-resource/cgi-bin
+bin/*
+resource/cgi-bin/*
