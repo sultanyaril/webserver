@@ -67,7 +67,10 @@ char *get_word(int client_socket) {
         answ = realloc(answ, (size + 1) * sizeof(char));
         answ[size - 1] = ch;
     }
-    answ[size] = '\0';
+    if (answ)
+        answ[size] = '\0';
+    else
+        return get_word(client_socket);
     return answ;
 }
 
@@ -130,19 +133,28 @@ char *telnet_text(char *request_path) {
     strcpy(answ, head);
     int type_ind = 0;
     for ( ; request_path[type_ind] != '.'; type_ind++);
+    answ = realloc(answ, sizeof(char) * (strlen(answ) + strlen(&request_path[type_ind + 1]) + 1 ));
     strcat(answ, &(request_path[type_ind + 1]));
     char cont[] = "/text\ncontent-size: ";
+    answ = realloc(answ, sizeof(char) * (strlen(answ) + strlen(cont) - 1));
     strcat(answ, cont);
     struct stat stats;
     if (stat(request_path, &stats) != 0)
         perror("stat error");
-    char str_size[15];
+    char *str_size = malloc(sizeof(char) * (size_long(stats.st_size) - 1));
     sprintf(str_size, "%ld", stats.st_size);
+    str_size[size_long(stats.st_size)] = '\0';
+    answ = realloc(answ, sizeof(char) * (strlen(answ) + strlen(str_size) - 1));
     strcat(answ, str_size);
+    free(str_size);
+    answ = realloc(answ, sizeof(char) * (strlen(answ) + 1));
     strcat(answ, "\n");
-    char *buff = malloc(sizeof(char) * stats.st_size);
+    char *buff = malloc(sizeof(char) * (stats.st_size + 1));
     read(fd, buff, stats.st_size);
+    answ = realloc(answ, sizeof(char) * (strlen(answ) + strlen(buff) - 1));
     strcat(answ, buff);
+    free(buff);
+    answ = realloc(answ, sizeof(char) * (strlen(answ) + 1));
     strcat(answ, "\n");
     close(fd);
     return answ;
@@ -167,9 +179,13 @@ int telnet_bin(int client_socket, char *request_path) {
     if (pid == 0) {
         dup2(client_socket, 1);
         char *cmd = malloc(sizeof(char) * 3);
-        strcpy(cmd, "./\0");
-        strcat(cmd, request_path);
-        execl(cmd, cmd, NULL);
+        // strcpy(cmd, "./\0");
+        // strcat(cmd, request_path);
+        int res = execl(request_path, request_path, NULL);
+        if (res == -1) {
+            char head[] = "HTTP/1.1 404\n";
+            write(1, head, strlen(head));
+        }
         exit(0);
     }
 }
@@ -179,10 +195,13 @@ int interaction_client(int client_socket) {
     if (request_is_text(request_path)) {
         char *response = telnet_text(request_path);
         send_to_client(client_socket, response);
+        free(response);
+        free(request_path);
         return 1;
     }
     if (request_is_bin(request_path)) {
         telnet_bin(client_socket, request_path);
+        free(request_path);
         return 1;
     }
 }
@@ -220,14 +239,6 @@ int main(int argc, char** argv) {
             }
             exit(0);
         }
-    }
-
-    while(1) {
-        client_socket = accept(server_socket,
-                        (struct sockaddr *) &client_address,
-                        &size);
-        write(client_socket, "busy\n", 5);
-        close(client_socket);
     }
 
     for (int i = 0; i < client_num ; i++) {

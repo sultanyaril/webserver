@@ -45,25 +45,30 @@ int init_socket(const char *ip, int port) {
 char *get_segment(void) {
     char *answ = NULL;
     int size = 0;
-    for (char ch = getchar() ; ch != '/' && ch != ':' && ch != '\n'; ch = getchar()) {
+    for (char ch = getchar() ; ch != ' ' && ch != '/' && ch != ':' && ch != '\n'; ch = getchar()) {
         size++;
         answ = realloc(answ, (size + 1) * sizeof(char));
         answ[size - 1] = ch;
     }
     if (answ)
         answ[size] = '\0';
+    else
+        return get_segment();
     return answ;
 }
 
 char *get_file_path(void) {
     char *answ = NULL;
     int size = 0;
-    for (char ch = getchar() ; ch != '\n' && ch != '\0' ; ch = getchar()) {
+    for (char ch = getchar() ; ch!= ' ' && ch != '\n' && ch != '\0' ; ch = getchar()) {
         size++;
         answ = realloc(answ, (size + 1) * sizeof(char));
         answ[size - 1] = ch;
     }
-    answ[size] = '\0';
+    if (answ)
+        answ[size] = '\0';
+    else
+        return get_file_path();
     return answ;
 }
 
@@ -82,18 +87,6 @@ int parse(char **real_ip, int *real_port, char **real_file) {
         perror("incorrect query #1");
     }
     free(cont);
-
-    cont = get_segment(); // reading '/'
-    if (cont) {
-        perror("incorrect query #2");
-        free(cont);
-    }
-
-    cont = get_segment(); // reading '/'
-    if (cont) {
-        perror ("incorrect query #3");
-        free(cont);
-    }
 
     ip = get_segment(); // getting ip
     cont = get_segment();
