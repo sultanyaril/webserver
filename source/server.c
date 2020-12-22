@@ -254,8 +254,15 @@ int free_values(char **values) {
     return 1;
 }
 
+void print_values(char **values) {
+    for (int i = 0; values[i]; i++)
+        printf("\n%s\n", values[i]);
+    return;
+}
+
 int send_response_bin(int client_socket, char *request_path) {
     char **values = split_values(request_path);
+    print_values(values);
     int fd = (request_path, O_RDONLY, 0);
     if (fd < 0) {
         char *answ = malloc(strlen(HEADER_HTTP));
@@ -288,8 +295,10 @@ int send_response_bin(int client_socket, char *request_path) {
 
 int request_is_multimedia(char *path) {
     int i = 0;
-    for ( ; path[i] != '.' ;i++) {
+    for ( ; path[i] != '\0' && path[i] != '.' ;i++) {
     }
+    if (i == strlen(path))
+        return 0;
     for (int j = 0; j < sizeof(multimedia_extensions); j++) {
         if (!strcmp(path + i + 1, multimedia_extensions[j]))
             return 1;
@@ -344,12 +353,12 @@ int interaction_client(int client_socket) {
         free(request_path);
         return 1;
     }
-
     if (request_is_bin(request_path)) {
         send_response_bin(client_socket, request_path + 1);
         free(request_path);
         return 1;
     }
+    return 1;
 }
 
 int main(int argc, char** argv) {
@@ -368,27 +377,28 @@ int main(int argc, char** argv) {
     int client_num = atoi(argv[2]);
     int server_socket = init_socket(port);
     int client_socket;
-    int *pid = malloc(sizeof(int) * client_num);
+    // int *pid = malloc(sizeof(int) * client_num);
 
     for (int i = 0 ; i < client_num ; i++) {
-        pid[i] = fork();
-        if (pid[i] == 0) {
-            while (1) {
-                puts("wait for connection");
-                client_socket = accept(server_socket,
-                                (struct sockaddr *) &client_address,
-                                &size);
-                printf("connected: %s %d\n", inet_ntoa(client_address.sin_addr),
-                                ntohs(client_address.sin_port));
+        while (1) {
+            puts("wait for connection");
+            client_socket = accept(server_socket,
+                            (struct sockaddr *) &client_address,
+                            &size);
+            printf("connected: %s %d\n", inet_ntoa(client_address.sin_addr),
+                            ntohs(client_address.sin_port));
+            int pid = fork();
+            if (pid == 0) {
                 interaction_client(client_socket);
-                close(client_socket);
+            } else {
+                wait(NULL);
             }
-            exit(0);
+            close(client_socket);
         }
     }
 
-    for (int i = 0; i < client_num ; i++) {
-        waitpid(pid[i], 0, 0);
-    }
+    // for (int i = 0; i < client_num ; i++) {
+        // waitpid(pid[i], 0, 0);
+    // }
     return 0;
 }
